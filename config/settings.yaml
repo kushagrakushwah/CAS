@@ -1,0 +1,165 @@
+# ============================================================
+# AI-Based Person and Crowd Awareness System
+# Main Configuration File
+# ============================================================
+
+# --- Camera Settings ---
+camera:
+  device_id: 0              # Camera index (0 = default webcam)
+  width: 1280               # Frame width in pixels
+  height: 720               # Frame height in pixels
+  fps: 30                   # Target frames per second
+  flip_horizontal: false    # Mirror the feed (useful for front camera)
+  buffer_size: 1            # Frame buffer size (1 = minimal latency)
+
+# --- Detection Settings ---
+detection:
+  model: "yolov8n.pt"       # YOLOv8 model: n(ano), s(mall), m(edium), l(arge), x
+  confidence_threshold: 0.45  # Min confidence to accept a detection
+  nms_threshold: 0.45         # Non-maximum suppression IoU threshold
+  target_classes: [0]         # COCO class IDs: 0 = person
+  device: "auto"              # "auto", "cpu", "cuda", "mps" (Apple Silicon)
+  half_precision: false       # FP16 inference (requires CUDA)
+  img_size: 640               # Input image size for model
+
+# --- Distance Estimation ---
+distance:
+  method: "bbox_height"     # Options: "bbox_height", "stereo", "depth_model"
+  
+  # Focal length calibration (pixels)
+  # Formula: focal_px = (known_distance_m * person_height_px) / known_person_height_m
+  focal_length_px: 615.0    # Calibrated focal length (tune with calibrate.py)
+  
+  # Reference person height in meters (average adult ~1.7m)
+  known_person_height_m: 1.70
+  
+  # Zone thresholds in meters
+  zones:
+    critical: 1.0           # RED zone: < 1m  → immediate danger
+    close: 2.5              # ORANGE zone: 1m–2.5m → very close
+    near: 4.0               # YELLOW zone: 2.5m–4m → approaching
+    medium: 7.0             # GREEN zone: 4m–7m → monitoring
+    far: 999.0              # BLUE zone: > 7m → far away
+
+# --- Tracking Settings ---
+tracking:
+  enabled: true
+  max_age: 30               # Max frames to keep a lost track alive
+  min_hits: 3               # Min detections before track is confirmed
+  iou_threshold: 0.3        # IoU threshold for track association
+  max_tracks: 50            # Max simultaneous tracked persons
+  
+  # Kalman filter process/measurement noise
+  process_noise: 1e-2
+  measurement_noise: 1e-1
+
+# --- Movement Analysis ---
+movement:
+  history_frames: 15        # Frames of position history for movement analysis
+  min_speed_threshold: 0.05 # Min speed (m/s) to be considered "moving"
+  approach_threshold: -0.15 # Negative = getting closer (m/s toward camera)
+  retreat_threshold: 0.15   # Positive = moving away (m/s)
+  
+  # Direction classification thresholds (degrees)
+  direction_bins:
+    - [337.5, 360, "North"]
+    - [0, 22.5, "North"]
+    - [22.5, 67.5, "Northeast"]
+    - [67.5, 112.5, "East"]
+    - [112.5, 157.5, "Southeast"]
+    - [157.5, 202.5, "South"]
+    - [202.5, 247.5, "Southwest"]
+    - [247.5, 292.5, "West"]
+    - [292.5, 337.5, "Northwest"]
+
+# --- Audio Alert Settings ---
+audio:
+  enabled: true
+  engine: "pyttsx3"         # "pyttsx3" (offline) or "gtts" (online)
+  volume: 0.9               # 0.0 to 1.0
+  rate: 175                 # Words per minute (pyttsx3)
+  voice_gender: "female"    # "male" or "female" (pyttsx3)
+  
+  # Cooldowns to prevent alert spam (seconds)
+  cooldowns:
+    critical: 2.0           # Alerts every 2s in critical zone
+    close: 4.0              # Alerts every 4s in close zone
+    near: 8.0               # Alerts every 8s in near zone
+    path_blocked: 5.0       # Path blocked alert cooldown
+    crowd: 10.0             # Crowd density alert cooldown
+    approach: 6.0           # Person approaching alert cooldown
+  
+  # Alert messages (supports {count}, {distance:.1f}, {direction} placeholders)
+  messages:
+    critical: "Warning! Person {distance:.1f} meters ahead"
+    close: "Person very close, {distance:.1f} meters"
+    near: "Person nearby at {distance:.1f} meters"
+    approaching: "Someone approaching from your {direction}"
+    path_blocked: "Path ahead is blocked"
+    crowd_alert: "{count} people detected nearby"
+    clear: "Path clear"
+  
+  # Spatial audio (left/right panning based on person position)
+  spatial_audio: true
+  
+  # Beep tones instead of/in addition to speech
+  beep_alerts: true
+  beep_frequencies:
+    critical: 880            # Hz
+    close: 660
+    near: 440
+
+# --- Zone & Path Analysis ---
+zones:
+  # Path corridor: central X% of frame is considered "your path"
+  path_center_fraction: 0.40   # 40% of frame width = path corridor
+  path_block_threshold: 0.35   # If person bbox covers >35% of path → blocked
+  
+  # Crowd density
+  crowd_threshold: 5            # Alert if >= 5 people in frame
+  high_density_threshold: 10    # Critical crowd density
+
+# --- Display Settings ---
+display:
+  enabled: true
+  window_name: "CrowdAware AI"
+  show_fps: true
+  show_distance: true
+  show_direction: true
+  show_track_id: true
+  show_zone_overlay: true
+  show_path_corridor: true
+  show_trajectory: true
+  trajectory_length: 20         # Frames of trajectory to draw
+  
+  # Color scheme (BGR format)
+  colors:
+    critical: [0, 0, 255]       # Red
+    close: [0, 128, 255]        # Orange
+    near: [0, 255, 255]         # Yellow
+    medium: [0, 255, 0]         # Green
+    far: [255, 200, 0]          # Blue
+    path_corridor: [255, 255, 0, 40]  # Yellow semi-transparent
+    trajectory: [255, 150, 50]  # Orange-blue trajectory
+    text_bg: [20, 20, 20]
+    text_fg: [255, 255, 255]
+  
+  # Dashboard panel (right side info panel)
+  show_dashboard: true
+  dashboard_width: 300
+
+# --- Performance Settings ---
+performance:
+  skip_frames: 0              # Process every N+1 frames (0 = process all)
+  max_detection_fps: 15       # Cap detection at this FPS to save CPU
+  enable_threading: true      # Run detection in background thread
+  gpu_memory_fraction: 0.5   # Fraction of GPU memory to use
+
+# --- Logging ---
+logging:
+  level: "INFO"               # DEBUG, INFO, WARNING, ERROR
+  file: "logs/crowdaware.log"
+  max_file_size_mb: 10
+  backup_count: 3
+  log_detections: false       # Log every detection (verbose)
+  log_alerts: true            # Log audio alerts

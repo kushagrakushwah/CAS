@@ -1,0 +1,51 @@
+# ============================================================
+# AI-Based Person and Crowd Awareness System
+# Requirements File
+# ============================================================
+
+# Core Computer Vision & AI
+opencv-python>=4.8.0
+numpy>=1.24.0
+torch>=2.0.0
+torchvision>=0.15.0
+ultralytics>=8.0.0          # YOLOv8 for person detection
+
+# Deep Learning Utilities
+onnxruntime>=1.16.0         # ONNX Runtime for optimized inference
+Pillow>=10.0.0              # Image processing
+
+# Audio & Text-to-Speech
+pyttsx3>=2.90               # Offline TTS engine
+pygame>=2.5.0               # Audio playback
+gTTS>=2.3.0                 # Google TTS (optional, needs internet)
+playsound>=1.3.0            # Simple audio playback
+
+# Distance Estimation & Tracking
+scipy>=1.11.0               # Scientific computing
+filterpy>=1.4.5             # Kalman filtering for tracking
+lap>=0.4.0                  # Linear assignment for tracking
+
+# UI & Visualization
+PyQt5>=5.15.0               # GUI framework
+pyqtgraph>=0.13.0           # Real-time plotting in Qt
+
+# Configuration & Utilities
+pyyaml>=6.0                 # YAML config files
+click>=8.1.0                # CLI interface
+rich>=13.0.0                # Rich terminal output
+loguru>=0.7.0               # Advanced logging
+python-dotenv>=1.0.0        # Environment variables
+
+# Performance & Monitoring
+psutil>=5.9.0               # System resource monitoring
+py-cpuinfo>=9.0.0           # CPU info
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+
+# Development
+black>=23.0.0
+flake8>=6.1.0
+isort>=5.12.0
