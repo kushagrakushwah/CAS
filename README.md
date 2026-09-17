@@ -199,8 +199,3 @@ CAS/
 * **Depth Camera Integration:** Implementation of direct SDK support for hardware like Intel RealSense or Luxonis Oak-D for absolute millimeter-accurate depth measurement.
 * **Pose Estimation:** Integrating YOLOv8-Pose to determine the vector of a person's gaze, avoiding alerts for individuals walking away from the user.
 * **Mobile Deployment:** Exporting the PyTorch models to ONNX/CoreML formats for eventual execution on Android and iOS devices.
-
----
-
-## License
-This project is licensed under the MIT License - see the LICENSE file for details.
