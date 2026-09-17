@@ -50,6 +50,8 @@ class CrowdAwarePipeline:
 
         # Camera settings
         self.cam_id     = cam_cfg.get("device_id",   0)
+        # A camera index is an int; a video file path is a string.
+        self.is_video_file = isinstance(self.cam_id, str)
         self.cam_width  = cam_cfg.get("width",        1280)
         self.cam_height = cam_cfg.get("height",       720)
         self.cam_fps    = cam_cfg.get("fps",          30)
@@ -112,6 +114,9 @@ class CrowdAwarePipeline:
             while self._running:
                 ret, frame = self._cap.read()
                 if not ret or frame is None:
+                    if self.is_video_file:
+                        logger.info("[Pipeline] End of video file reached.")
+                        break
                     logger.warning("[Pipeline] Failed to read frame — retrying…")
                     time.sleep(0.05)
                     continue
