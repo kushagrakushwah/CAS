@@ -28,67 +28,67 @@ def make_styles():
     s = {}
 
     s["cover_title"] = ParagraphStyle(
-        "cover_title", fontSize=28, textColor=colors.HexColor("#1A237E"),
+        "cover_title", fontSize=28, textColor=colors.black,
         spaceAfter=10, spaceBefore=30, alignment=TA_CENTER, leading=34,
         fontName="Helvetica-Bold"
     )
     s["cover_sub"] = ParagraphStyle(
-        "cover_sub", fontSize=14, textColor=colors.HexColor("#37474F"),
+        "cover_sub", fontSize=14, textColor=colors.black,
         spaceAfter=6, alignment=TA_CENTER, fontName="Helvetica"
     )
     s["cover_author"] = ParagraphStyle(
-        "cover_author", fontSize=11, textColor=colors.HexColor("#607D8B"),
+        "cover_author", fontSize=11, textColor=colors.black,
         spaceAfter=4, alignment=TA_CENTER, fontName="Helvetica-Oblique"
     )
     s["chapter"] = ParagraphStyle(
-        "chapter", fontSize=20, textColor=colors.HexColor("#1A237E"),
+        "chapter", fontSize=20, textColor=colors.black,
         spaceAfter=12, spaceBefore=24, fontName="Helvetica-Bold",
         borderPad=4
     )
     s["section"] = ParagraphStyle(
-        "section", fontSize=14, textColor=colors.HexColor("#283593"),
+        "section", fontSize=14, textColor=colors.black,
         spaceAfter=8, spaceBefore=14, fontName="Helvetica-Bold"
     )
     s["subsection"] = ParagraphStyle(
-        "subsection", fontSize=12, textColor=colors.HexColor("#3949AB"),
+        "subsection", fontSize=12, textColor=colors.black,
         spaceAfter=6, spaceBefore=10, fontName="Helvetica-Bold"
     )
     s["body"] = ParagraphStyle(
-        "body", fontSize=10, textColor=colors.HexColor("#212121"),
+        "body", fontSize=10, textColor=colors.black,
         spaceAfter=6, leading=16, alignment=TA_JUSTIFY, fontName="Helvetica"
     )
     s["bullet"] = ParagraphStyle(
-        "bullet", fontSize=10, textColor=colors.HexColor("#212121"),
+        "bullet", fontSize=10, textColor=colors.black,
         spaceAfter=4, leading=15, leftIndent=16, bulletIndent=4,
         fontName="Helvetica"
     )
     s["code"] = ParagraphStyle(
-        "code", fontSize=8.5, textColor=colors.HexColor("#F5F5F5"),
-        backColor=colors.HexColor("#263238"), fontName="Courier",
+        "code", fontSize=8.5, textColor=colors.black,
+        backColor=colors.HexColor("#F5F5F5"), fontName="Courier",
         spaceAfter=8, spaceBefore=4, leading=13,
         leftIndent=10, rightIndent=10, borderPad=6,
-        borderColor=colors.HexColor("#37474F"), borderWidth=1, borderRadius=3
+        borderColor=colors.HexColor("#BDBDBD"), borderWidth=1, borderRadius=3
     )
     s["note"] = ParagraphStyle(
-        "note", fontSize=9.5, textColor=colors.HexColor("#1B5E20"),
-        backColor=colors.HexColor("#E8F5E9"), fontName="Helvetica-Oblique",
+        "note", fontSize=9.5, textColor=colors.black,
+        backColor=colors.HexColor("#F1F8E9"), fontName="Helvetica-Oblique",
         spaceAfter=8, spaceBefore=4, leading=14,
         leftIndent=10, rightIndent=10, borderPad=6,
-        borderColor=colors.HexColor("#4CAF50"), borderWidth=1
+        borderColor=colors.HexColor("#AED581"), borderWidth=1
     )
     s["warning"] = ParagraphStyle(
-        "warning", fontSize=9.5, textColor=colors.HexColor("#7F0000"),
-        backColor=colors.HexColor("#FFEBEE"), fontName="Helvetica-Oblique",
+        "warning", fontSize=9.5, textColor=colors.black,
+        backColor=colors.HexColor("#FFF8E1"), fontName="Helvetica-Oblique",
         spaceAfter=8, spaceBefore=4, leading=14,
         leftIndent=10, rightIndent=10, borderPad=6,
-        borderColor=colors.HexColor("#EF9A9A"), borderWidth=1
+        borderColor=colors.HexColor("#FFD54F"), borderWidth=1
     )
     s["formula"] = ParagraphStyle(
-        "formula", fontSize=11, textColor=colors.HexColor("#1A237E"),
-        backColor=colors.HexColor("#E8EAF6"), fontName="Courier-Bold",
+        "formula", fontSize=11, textColor=colors.black,
+        backColor=colors.HexColor("#F5F5F5"), fontName="Courier-Bold",
         spaceAfter=8, spaceBefore=4, leading=16,
         alignment=TA_CENTER, borderPad=8,
-        borderColor=colors.HexColor("#7986CB"), borderWidth=1
+        borderColor=colors.HexColor("#BDBDBD"), borderWidth=1
     )
     return s
 
@@ -746,10 +746,10 @@ def build_pdf():
         ("FONTNAME",      (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE",      (0, 0), (-1, -1), 8.5),
         ("FONTNAME",      (0, 1), (-1, -1), "Helvetica"),
-        ("TEXTCOLOR",     (1, 1), (1, 5),  colors.HexColor("#1B5E20")),
-        ("TEXTCOLOR",     (1, 6), (1, -1), colors.HexColor("#0D47A1")),
+        ("TEXTCOLOR",     (1, 1), (1, 5),  colors.black),
+        ("TEXTCOLOR",     (1, 6), (1, -1), colors.black),
         ("FONTNAME",      (1, 1), (1, -1), "Helvetica-Bold"),
-        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.HexColor("#E8EAF6"), colors.white]),
+        ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.HexColor("#F5F5F5"), colors.white]),
         ("GRID",          (0, 0), (-1, -1), 0.5, colors.HexColor("#9FA8DA")),
         ("TOPPADDING",    (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
