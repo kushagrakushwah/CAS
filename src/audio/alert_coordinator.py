@@ -84,13 +84,14 @@ class AlertCoordinator:
         # Sort tracks by distance — handle closest ones first
         sorted_tracks = sorted(tracks, key=lambda t: t.distance_m)
 
-        # 1. Critical / close / near proximity alerts (closest person)
+        # 1. Proximity alerts — only within 2 metres
         closest = sorted_tracks[0]
-        self._proximity_alert(closest, frame_width)
+        if closest.distance_m <= 2.0:
+            self._proximity_alert(closest, frame_width)
 
-        # 2. Approaching alerts (any person approaching, not just closest)
+        # 2. Approaching alerts — only if within 2 metres
         for track in sorted_tracks:
-            if track.is_approaching and track.distance_m < 5.0:
+            if track.is_approaching and track.distance_m <= 2.0:
                 self._approaching_alert(track, frame_width)
                 break   # Only one approaching alert per frame
 
@@ -115,21 +116,18 @@ class AlertCoordinator:
     # ------------------------------------------------------------------
 
     def _proximity_alert(self, track: Track, frame_width: int):
-        """Fire distance-based alert for the closest detected person."""
+        """Fire distance-based alert for person within 2 metres."""
         dist = track.distance_m
         cx   = track.center[0]
         pan  = self.engine.compute_pan(cx, frame_width)
 
-        if track.zone == Zone.CRITICAL:
+        if dist < 1.0:
             msg = self._msg_critical.format(distance=dist)
             self.engine.alert_critical(msg, pan=pan)
-        elif track.zone == Zone.CLOSE:
+        elif dist <= 2.0:
             msg = self._msg_close.format(distance=dist)
             self.engine.alert_close(msg, pan=pan)
-        elif track.zone == Zone.NEAR:
-            msg = self._msg_near.format(distance=dist)
-            self.engine.alert_near(msg, pan=pan)
-        # MEDIUM and FAR zones: no proximity alert (too far to matter)
+        # Beyond 2m: no voice alert
 
     def _approaching_alert(self, track: Track, frame_width: int):
         """Fire alert when someone is actively moving toward the user."""

@@ -216,43 +216,73 @@ class AlertEngine:
 
     def _worker_loop(self):
         """Background thread: drain queue and speak alerts."""
+        # On Windows, SAPI COM requires CoInitialize in each thread.
+        try:
+            import pythoncom
+            pythoncom.CoInitialize()
+            logger.info("[Audio] COM initialized for worker thread.")
+        except ImportError:
+            logger.warning("[Audio] pythoncom not available — COM not initialized.")
+        except Exception as e:
+            logger.warning(f"[Audio] COM init warning: {e}")
+
         self._init_tts()
+
         while self._running:
             try:
-                alert: Alert = self._queue.get(timeout=0.1)
-                self._speak(alert)
+                alert: Alert = self._queue.get(timeout=0.2)
+
+                # Drain stale alerts — only speak the latest one
+                latest = alert
+                while not self._queue.empty():
+                    try:
+                        latest = self._queue.get_nowait()
+                        self._queue.task_done()
+                    except Empty:
+                        break
+
+                self._speak(latest)
                 self._queue.task_done()
             except Empty:
                 pass
             except Exception as e:
                 logger.error(f"[Audio] Worker error: {e}")
 
-    def _init_tts(self):
-        """Initialize TTS engine in the worker thread."""
+        # Clean up COM
         try:
-            if self.engine_type == "pyttsx3":
+            import pythoncom
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
+
+    def _init_tts(self):
+        """Initialize TTS engine in the worker thread using Windows SAPI directly."""
+        try:
+            # Use win32com SAPI directly — far more reliable in threads than pyttsx3
+            import win32com.client
+            voice = win32com.client.Dispatch("SAPI.SpVoice")
+            voice.Rate = max(-10, min(10, (self.rate - 175) // 20))  # Map WPM to SAPI rate
+            voice.Volume = int(self.volume * 100)
+            self._tts_engine = voice
+            self._tts_type = "sapi"
+            logger.info("[Audio] Windows SAPI voice engine initialized.")
+        except Exception as e1:
+            logger.warning(f"[Audio] SAPI init failed ({e1}), trying pyttsx3 fallback...")
+            try:
                 import pyttsx3
                 engine = pyttsx3.init()
                 engine.setProperty("rate", self.rate)
                 engine.setProperty("volume", self.volume)
-
-                # Select voice by gender preference
                 voices = engine.getProperty("voices")
                 if voices:
-                    # Try to find matching gender voice
-                    preferred = [
-                        v for v in voices
-                        if hasattr(v, "gender") and
-                           str(v.gender).lower() == self.engine_type
-                    ]
-                    engine.setProperty("voice", voices[0].id)  # default fallback
+                    engine.setProperty("voice", voices[0].id)
                 self._tts_engine = engine
+                self._tts_type = "pyttsx3"
                 logger.info("[Audio] pyttsx3 TTS engine initialized.")
-            else:
-                logger.info("[Audio] Using print-only fallback TTS.")
-        except Exception as e:
-            logger.warning(f"[Audio] TTS init failed ({e}). Alerts will be printed only.")
-            self._tts_engine = None
+            except Exception as e2:
+                logger.warning(f"[Audio] All TTS init failed ({e2}). Alerts will be printed only.")
+                self._tts_engine = None
+                self._tts_type = None
 
     def _speak(self, alert: Alert):
         """Actually speak or print the alert."""
@@ -264,15 +294,18 @@ class AlertEngine:
             return
 
         try:
-            # Spatial panning (volume adjustment per channel)
-            # Full pyttsx3 doesn't support true panning, but we log it
             if self.spatial and abs(alert.pan) > 0.1:
                 direction = "LEFT" if alert.pan < 0 else "RIGHT"
                 logger.debug(f"[Audio] Spatial pan={alert.pan:.2f} ({direction})")
 
-            with self._tts_lock:
-                self._tts_engine.say(alert.message)
-                self._tts_engine.runAndWait()
+            if self._tts_type == "sapi":
+                # Windows SAPI — Speak is synchronous with flag 0
+                self._tts_engine.Speak(alert.message, 0)
+            else:
+                # pyttsx3 fallback
+                with self._tts_lock:
+                    self._tts_engine.say(alert.message)
+                    self._tts_engine.runAndWait()
         except Exception as e:
             logger.error(f"[Audio] Speech error: {e}")
             print(f"\n🔔 [{alert.category.upper()}] {alert.message}")
