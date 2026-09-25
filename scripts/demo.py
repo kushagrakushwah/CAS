@@ -44,6 +44,7 @@ def parse_args():
     p.add_argument("--frames", type=int, default=300, help="Number of frames for synthetic demo")
     p.add_argument("--fps",    type=int, default=30,  help="Demo FPS")
     p.add_argument("--save",   type=str, default=None, help="Save output to video file")
+    p.add_argument("--no-display", action="store_true", help="Disable display window (for headless/batch saving)")
     return p.parse_args()
 
 
@@ -184,13 +185,13 @@ def run_synthetic_demo(args):
         fps        = (i + 1) / max(elapsed, 0.001)
         annotated  = viz.draw(frame, tracks, fps, summary, detector.current_fps)
 
-        cv2.imshow("CrowdAware AI — Demo", annotated)
+        if not args.no_display:
+            cv2.imshow("CrowdAware AI — Demo", annotated)
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), ord("Q"), 27):
+                break
         if writer:
             writer.write(annotated)
-
-        key = cv2.waitKey(1) & 0xFF
-        if key in (ord("q"), ord("Q"), 27):
-            break
 
         # Throttle to target FPS
         sleep = frame_interval - (time.perf_counter() - (start + i * frame_interval))
