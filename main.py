@@ -73,8 +73,7 @@ def parse_args() -> argparse.Namespace:
     # Model
     parser.add_argument(
         "--model", "-m", type=str, default=None,
-        choices=["yolov8n.pt", "yolov8s.pt", "yolov8m.pt", "yolov8l.pt", "yolov8x.pt"],
-        help="YOLOv8 model size (n=fastest, x=most accurate)"
+        help="Path to trained model checkpoint (e.g. models/best_person_detector.pth)"
     )
 
     # Config
@@ -227,13 +226,22 @@ def run_preflight_checks(config: dict) -> bool:
         console.print("[red]✗ PyTorch not installed (pip install torch)[/red]")
         ok = False
 
-    # Ultralytics (YOLOv8)
+    # Torchvision (for Custom MobileNet / SSDLite Detector)
     try:
-        import ultralytics
-        console.print(f"[green]✓ Ultralytics YOLOv8 {ultralytics.__version__}[/green]")
+        import torchvision
+        console.print(f"[green]✓ Torchvision {torchvision.__version__}[/green]")
     except ImportError:
-        console.print("[red]✗ Ultralytics not installed (pip install ultralytics)[/red]")
+        console.print("[red]✗ Torchvision not installed (pip install torchvision)[/red]")
         ok = False
+
+    # Check YOLO only if explicitly configured
+    if config.get("detection", {}).get("engine") == "yolo":
+        try:
+            import ultralytics
+            console.print(f"[green]✓ Ultralytics YOLOv8 {ultralytics.__version__}[/green]")
+        except ImportError:
+            console.print("[red]✗ Ultralytics not installed (pip install ultralytics)[/red]")
+            ok = False
 
     # Audio
     audio_enabled = config.get("audio", {}).get("enabled", True)

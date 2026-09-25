@@ -14,13 +14,14 @@ camera:
 
 # --- Detection Settings ---
 detection:
-  model: "yolov8n.pt"       # YOLOv8 model: n(ano), s(mall), m(edium), l(arge), x
-  confidence_threshold: 0.45  # Min confidence to accept a detection
+  engine: "mobilenet"       # "mobilenet" (custom trained PyTorch, Zero-YOLO)
+  model: "models/best_person_detector.pth" # Custom trained checkpoint
+  confidence_threshold: 0.40  # Min confidence to accept a detection
   nms_threshold: 0.45         # Non-maximum suppression IoU threshold
-  target_classes: [0]         # COCO class IDs: 0 = person
+  target_classes: [0]         # Class ID (0 for pipeline)
   device: "auto"              # "auto", "cpu", "cuda", "mps" (Apple Silicon)
-  half_precision: false       # FP16 inference (requires CUDA)
-  img_size: 640               # Input image size for model
+  half_precision: false       # FP16 inference
+  img_size: 320               # Input image size for MobileNet model
 
 # --- Distance Estimation ---
 distance:

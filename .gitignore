@@ -1,0 +1,17 @@
+# Environments
+venv/
+.env
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+
+# Large raw datasets (downloadable via scripts/download_dataset.py)
+data/PennFudanPed/
+data/*.zip
+
+# Logs & Screenshots
+logs/
+screenshots/

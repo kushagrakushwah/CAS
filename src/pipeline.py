@@ -20,6 +20,7 @@ import cv2
 import numpy as np
 
 from .detection.detector import PersonDetector, Detection
+from .detection.mobilenet_detector import MobileNetPersonDetector
 from .detection.distance import DistanceEstimator, DistanceEstimate
 from .detection.tracker import MultiPersonTracker, Track
 from .audio.alert_engine import AlertEngine
@@ -67,7 +68,13 @@ class CrowdAwarePipeline:
 
         # Subsystems
         logger.info("[Pipeline] Initializing subsystems…")
-        self.detector    = PersonDetector(config)
+        engine_type = config.get("detection", {}).get("engine", "mobilenet")
+        model_name = str(config.get("detection", {}).get("model", ""))
+        if engine_type == "mobilenet" or model_name.endswith(".pth"):
+            logger.info("[Pipeline] Using Custom Deep Learning Detector (MobileNetV3-SSDLite, Zero-YOLO)")
+            self.detector = MobileNetPersonDetector(config)
+        else:
+            self.detector = PersonDetector(config)
         self.estimator   = DistanceEstimator(config)
         self.tracker     = MultiPersonTracker(config)
         self.alert_engine = AlertEngine(config)

@@ -3,14 +3,14 @@
 # Requirements File
 # ============================================================
 
-# Core Computer Vision & AI
+# Core Computer Vision & Deep Learning (Zero-YOLO Architecture)
 opencv-python>=4.8.0
 numpy>=1.24.0
 torch>=2.0.0
 torchvision>=0.15.0
-ultralytics>=8.0.0          # YOLOv8 for person detection
 
-# Deep Learning Utilities
+# Optional Alternative Engines (Not required by default)
+# ultralytics>=8.0.0          # Only if running legacy YOLOv8
 onnxruntime>=1.16.0         # ONNX Runtime for optimized inference
 Pillow>=10.0.0              # Image processing
 

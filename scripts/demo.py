@@ -144,13 +144,18 @@ def run_synthetic_demo(args):
     config.setdefault("display", {})["enabled"] = False
 
     from src.detection.detector import PersonDetector
+    from src.detection.mobilenet_detector import MobileNetPersonDetector
     from src.detection.distance import DistanceEstimator
     from src.detection.tracker import MultiPersonTracker
     from src.ui.visualizer import Visualizer
     from src.audio.alert_coordinator import AlertCoordinator
     from src.audio.alert_engine import AlertEngine
 
-    detector  = PersonDetector(config)
+    engine_type = config.get("detection", {}).get("engine", "mobilenet")
+    if engine_type == "mobilenet":
+        detector = MobileNetPersonDetector(config)
+    else:
+        detector = PersonDetector(config)
     estimator = DistanceEstimator(config)
     tracker   = MultiPersonTracker(config)
     viz       = Visualizer(config)
