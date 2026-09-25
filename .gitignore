@@ -10,8 +10,10 @@ __pycache__/
 
 # Large raw datasets (downloadable via scripts/download_dataset.py)
 data/PennFudanPed/
+data/kaggle_inria_test/
 data/*.zip
 
 # Logs & Screenshots
 logs/
 screenshots/
+reports/kaggle_eval/annotated_samples/

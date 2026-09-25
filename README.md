@@ -196,6 +196,24 @@ python scripts/demo.py --video path/to/video.mp4
 
 ---
 
+## Kaggle Dataset Benchmark & Evaluation
+
+You can test and evaluate the custom-trained PyTorch MobileNetV3 model on real-world Kaggle pedestrian images:
+
+```bash
+# Evaluate on 25 Kaggle INRIA pedestrian benchmark images
+python scripts/evaluate_on_kaggle.py --samples 25
+```
+
+The script automatically:
+1. Downloads test samples from the Kaggle INRIA Pedestrian Dataset.
+2. Measures inference latency, mean detection confidence, and detection rates.
+3. Computes real-world physical distances and proximity zones for each detected pedestrian.
+4. Generates visual overlays with bounding boxes, confidence tags, and distance estimates into `reports/kaggle_eval/annotated_samples/`.
+5. Prints a detailed performance report.
+
+---
+
 ## Testing Framework
 
 The project includes 34 PyTest unit tests covering model architecture, dataset loading, detection parsing, distance estimation geometry, and SORT tracking:
