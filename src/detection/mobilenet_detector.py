@@ -152,8 +152,16 @@ class MobileNetPersonDetector:
             x2 = max(x1 + 1, min(w, x2))
             y2 = max(y1 + 1, min(h, y2))
 
-            # Discard tiny noise
-            if (x2 - x1) < 15 or (y2 - y1) < 25:
+            # Discard tiny noise boxes — a real person needs a meaningful size.
+            # These limits cut false positives from an undertrained model
+            # that fires on textures/edges.
+            if (x2 - x1) < 40 or (y2 - y1) < 80:
+                continue
+
+            # Aspect ratio filter — standing people are always taller than wide.
+            # Very wide boxes are background noise.
+            aspect = (y2 - y1) / max((x2 - x1), 1)
+            if aspect < 1.2:
                 continue
 
             det = Detection(
