@@ -133,9 +133,13 @@ class PersonDetectionTrainer:
                 best_loss = loss
                 save_checkpoint(self.model, self.optimizer, epoch, loss, best_checkpoint_path)
 
-        # Also save latest checkpoint
+        # Also save latest and epoch-specific checkpoint
         latest_path = str(self.output_dir / "latest_person_detector.pth")
         save_checkpoint(self.model, self.optimizer, epochs, loss, latest_path)
 
+        epoch_tag_path = str(self.output_dir / f"mobilenet_pennfudan_{epochs}epochs.pth")
+        save_checkpoint(self.model, self.optimizer, epochs, loss, epoch_tag_path)
+
         print(f"\n[Trainer] Training complete! Best model saved to: {best_checkpoint_path}")
+        print(f"[Trainer] Epoch checkpoint saved to: {epoch_tag_path}")
         return best_checkpoint_path

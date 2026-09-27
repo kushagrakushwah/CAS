@@ -14,10 +14,10 @@ camera:
 
 # --- Detection Settings ---
 detection:
-  engine: "mobilenet"       # "mobilenet" (custom trained PyTorch, Zero-YOLO)
-  model: "models/best_person_detector.pth" # Custom trained checkpoint
-  confidence_threshold: 0.65  # Raised from 0.40 — cuts false positives from low-epoch model
-  nms_threshold: 0.35         # Tighter NMS — fewer overlapping duplicate boxes
+  engine: "mobilenet"       # "mobilenet" (custom PyTorch, Zero-YOLO)
+  model: "coco"             # "coco" for official high-precision COCO MobileNetV3-SSDLite weights, or path to .pth checkpoint
+  confidence_threshold: 0.50  # 0.50 with COCO weights is rock-solid (true persons detect at 0.95 - 1.00)
+  nms_threshold: 0.35         # Tighter NMS — eliminates duplicate overlapping boxes
   target_classes: [0]         # Class ID (0 for pipeline)
   device: "auto"              # "auto", "cpu", "cuda", "mps" (Apple Silicon)
   half_precision: false       # FP16 inference

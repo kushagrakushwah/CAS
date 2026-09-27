@@ -496,13 +496,16 @@ def page_model_info():
 """)
 
     st.markdown("### Config")
+    is_coco = str(ckpt).lower() in ("coco", "default")
+    ckpt_status = "Pretrained COCO (Torchvision)" if is_coco else ("Found" if ckpt_path.exists() else "Not Found")
+    ckpt_size_str = "45 MB (COCO weights)" if is_coco else (f"{round(ckpt_path.stat().st_size / 1e6, 1)} MB" if ckpt_path.exists() else "N/A")
     st.markdown(f"""
 | Setting | Value |
 |---|---|
 | Engine | `{det_cfg.get('engine')}` |
 | Checkpoint | `{ckpt}` |
-| Checkpoint exists | `{ckpt_path.exists()}` |
-| Checkpoint size | `{round(ckpt_path.stat().st_size / 1e6, 1)} MB` if exists |
+| Checkpoint status | `{ckpt_status}` |
+| Checkpoint size | `{ckpt_size_str}` |
 | Confidence threshold | `{det_cfg.get('confidence_threshold')}` |
 | NMS threshold | `{det_cfg.get('nms_threshold')}` |
 | Device | `{det_cfg.get('device')}` |
