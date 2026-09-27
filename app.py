@@ -67,14 +67,16 @@ def load_subsystems():
     from src.audio.alert_engine import AlertEngine
     from src.audio.alert_coordinator import AlertCoordinator
 
-    detector   = MobileNetPersonDetector(config)
-    estimator  = DistanceEstimator(config)
-    tracker    = MultiPersonTracker(config)
-    visualizer = Visualizer(config)
-    alert_eng  = AlertEngine(config)
+    detector    = MobileNetPersonDetector(config)
+    estimator   = DistanceEstimator(config)
+    tracker     = MultiPersonTracker(config)
+    visualizer  = Visualizer(config)
+    alert_eng   = AlertEngine(config)
     coordinator = AlertCoordinator(config, alert_eng)
 
-    alert_eng.start()
+    # Do NOT call alert_eng.start() here — pyttsx3 crashes when started
+    # inside Streamlit's cache thread. It is started lazily in process_frame()
+    # only when the user enables audio.
     return detector, estimator, tracker, visualizer, alert_eng, coordinator, config
 
 
@@ -112,7 +114,17 @@ def process_frame(frame_bgr: np.ndarray, enable_audio: bool = False):
 
     # 4. Audio alerts (only if user enabled them)
     if enable_audio:
-        coordinator.evaluate(tracks, w)
+        # Start the audio engine lazily on first use (avoids crash at Streamlit boot)
+        if not st.session_state.get("audio_started", False):
+            try:
+                alert_eng.start()
+                st.session_state["audio_started"] = True
+            except Exception:
+                pass  # pyttsx3 not available — silently skip
+        try:
+            coordinator.evaluate(tracks, w)
+        except Exception:
+            pass  # Audio error — don't crash the detection loop
 
     # 5. Alert summary text
     alert_summary = coordinator.get_active_alert_summary(tracks)
