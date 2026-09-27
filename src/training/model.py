@@ -35,16 +35,33 @@ def create_mobilenet_person_detector(
 
 
 def save_checkpoint(model: nn.Module, optimizer, epoch: int, loss: float, filepath: str):
-    """Save model checkpoint dictionary."""
-    torch.save({
+    """Save model checkpoint dictionary safely (OneDrive/Windows file lock resistant)."""
+    import os
+    import time
+    data = {
         "epoch": epoch,
         "model_state_dict": model.state_dict(),
         "optimizer_state_dict": optimizer.state_dict() if optimizer else None,
         "loss": loss,
         "architecture": "ssdlite320_mobilenet_v3_large",
         "num_classes": 2,
-    }, filepath)
-    print(f"[Model] Saved checkpoint to: {filepath}")
+    }
+    tmp_path = f"{filepath}.tmp"
+    torch.save(data, tmp_path)
+
+    # Windows / OneDrive can lock files temporarily during cloud sync (error 1224)
+    saved_path = filepath
+    for attempt in range(5):
+        try:
+            os.replace(tmp_path, filepath)
+            break
+        except OSError:
+            time.sleep(0.5)
+            if attempt == 4:
+                saved_path = f"{filepath.rsplit('.', 1)[0]}_ep{epoch}.pth"
+                os.replace(tmp_path, saved_path)
+
+    print(f"[Model] Saved checkpoint to: {saved_path}")
 
 
 def load_checkpoint(filepath: str, device: str = "cpu") -> nn.Module:
