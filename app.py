@@ -420,6 +420,182 @@ def page_webcam():
 
 
 # ---------------------------------------------------------------------------
+# Page: Video Upload
+# ---------------------------------------------------------------------------
+def page_video():
+    st.header("Video Detection")
+    st.write(
+        "Upload a video file. The model runs on every frame, draws bounding boxes, "
+        "fires audio alerts, and lets you download the fully annotated video."
+    )
+
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        uploaded_video = st.file_uploader(
+            "Choose a video file",
+            type=["mp4", "avi", "mov", "mkv", "webm"],
+            help="Supports MP4, AVI, MOV, MKV, WEBM",
+        )
+    with col2:
+        enable_audio = st.checkbox(
+            "Enable voice alerts while processing",
+            value=False,
+            key="video_audio",
+            help="Plays audio on your speakers as the video is processed frame by frame.",
+        )
+        process_every = st.slider(
+            "Process every N-th frame",
+            min_value=1, max_value=10, value=3,
+            help="1 = every frame (slowest, most detailed). 3 = every 3rd frame (faster).",
+        )
+
+    if uploaded_video is None:
+        st.info("Upload a video file above to start.")
+        return
+
+    # --- Save uploaded video to a temp file so OpenCV can open it ---
+    import tempfile
+    tmp_dir = ROOT / "output" / "video_tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_input = tmp_dir / f"input_{uploaded_video.name}"
+    tmp_input.write_bytes(uploaded_video.read())
+
+    cap = cv2.VideoCapture(str(tmp_input))
+    if not cap.isOpened():
+        st.error("Could not open the video file. Try a different format.")
+        return
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    orig_fps     = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    orig_w       = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    orig_h       = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    st.markdown(
+        f"**Video info:** {total_frames} frames · {orig_fps:.1f} FPS · "
+        f"{orig_w}×{orig_h} px · duration {total_frames/orig_fps:.1f}s"
+    )
+
+    if not st.button("Process Video", type="primary"):
+        cap.release()
+        return
+
+    # --- Set up output video writer ---
+    output_dir = ROOT / "output" / "video_results"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_name    = f"annotated_{uploaded_video.name.rsplit('.', 1)[0]}.mp4"
+    out_path    = output_dir / out_name
+    fourcc      = cv2.VideoWriter_fourcc(*"mp4v")
+    out_writer  = cv2.VideoWriter(str(out_path), fourcc, orig_fps, (orig_w, orig_h))
+
+    # --- UI placeholders ---
+    live_frame_ph  = st.empty()
+    progress_ph    = st.progress(0)
+    stats_ph       = st.empty()
+    alert_log_ph   = st.empty()
+
+    # --- Process ---
+    frame_idx        = 0
+    processed_count  = 0
+    total_detections = 0
+    last_annotated   = None
+    alert_log        = []          # list of (timestamp_str, alert_text)
+    last_audio_alert = ""
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame_idx += 1
+        should_detect = (frame_idx % process_every == 0) or frame_idx == 1
+
+        if should_detect:
+            annotated, tracks, detections, alert_summary, stats = process_frame(
+                frame, enable_audio=enable_audio
+            )
+            last_annotated  = annotated
+            processed_count += 1
+            total_detections += stats["detections"]
+
+            # --- Live preview (every 5th processed frame to keep UI snappy) ---
+            if processed_count % 5 == 0:
+                live_frame_ph.image(
+                    bgr_to_pil(annotated),
+                    caption=f"Frame {frame_idx}/{total_frames}",
+                    use_container_width=True,
+                )
+
+            # --- Collect alert log entries (deduplicate consecutive same alerts) ---
+            ts = f"{frame_idx / orig_fps:.1f}s"
+            if alert_summary and alert_summary != last_audio_alert and "clear" not in alert_summary.lower():
+                alert_log.append((ts, alert_summary))
+                last_audio_alert = alert_summary
+
+                # Refresh alert log table every time a new alert fires
+                if alert_log:
+                    alert_log_ph.markdown(
+                        "**Alert Log (live):**\n\n" +
+                        "\n".join(f"- `{t}` — {a}" for t, a in alert_log[-10:])
+                    )
+
+            # --- Stats line ---
+            stats_ph.markdown(
+                f"Frame **{frame_idx}/{total_frames}** | "
+                f"People: **{stats['detections']}** | "
+                f"Inference: **{stats['inference_ms']} ms** | "
+                f"Det FPS: **{stats['det_fps']}** | "
+                f"Conf: **{stats['avg_conf']:.1%}**"
+            )
+
+            out_writer.write(annotated)
+        else:
+            # Write un-annotated frame (with last overlay reused) to keep video fps correct
+            if last_annotated is not None:
+                out_writer.write(last_annotated)
+            else:
+                out_writer.write(frame)
+
+        progress_ph.progress(min(frame_idx / max(total_frames, 1), 1.0))
+
+    cap.release()
+    out_writer.release()
+
+    progress_ph.progress(1.0)
+    st.success(
+        f"Done! Processed {processed_count} frames out of {frame_idx} total. "
+        f"Total detections: {total_detections}."
+    )
+
+    # --- Final last frame preview ---
+    if last_annotated is not None:
+        st.subheader("Last annotated frame")
+        st.image(bgr_to_pil(last_annotated), use_container_width=True)
+
+    # --- Full alert log ---
+    if alert_log:
+        st.subheader("Full Alert Timeline")
+        rows = [{"Timestamp": t, "Alert": a} for t, a in alert_log]
+        st.dataframe(rows, use_container_width=True)
+    else:
+        st.info("No hazard alerts fired during this video.")
+
+    # --- Download button ---
+    if out_path.exists():
+        with open(out_path, "rb") as f:
+            st.download_button(
+                label="Download annotated video (MP4)",
+                data=f.read(),
+                file_name=out_name,
+                mime="video/mp4",
+            )
+
+    # --- Summary signal panel using last frame data ---
+    if last_annotated is not None:
+        _, tracks_last, _, alert_last, stats_last = process_frame(last_annotated)
+        render_signal_panel(tracks_last, alert_last, stats_last)
+
+
+# ---------------------------------------------------------------------------
 # Page: Batch Folder
 # ---------------------------------------------------------------------------
 def page_batch():
@@ -553,7 +729,7 @@ def main():
 
     page = st.sidebar.radio(
         "Navigate",
-        ["Image Upload", "Live Webcam", "Batch Scan", "Model Info"],
+        ["Image Upload", "Video Upload", "Live Webcam", "Batch Scan", "Model Info"],
     )
 
     # --- Load subsystems on startup (shows spinner once) ---
@@ -569,6 +745,8 @@ def main():
     # --- Route to page ---
     if page == "Image Upload":
         page_image_upload()
+    elif page == "Video Upload":
+        page_video()
     elif page == "Live Webcam":
         page_webcam()
     elif page == "Batch Scan":
