@@ -281,20 +281,23 @@ def page_image_upload():
     if image_files:
         st.markdown("**Or pick a test image:**")
         cols = st.columns(min(5, len(image_files)))
-        for i, img_path in enumerate(image_files[:10]):
-            with cols[i % 5]:
+        for i, img_path in enumerate(image_files[:5]):
+            with cols[i]:
                 thumb = Image.open(img_path).convert("RGB")
                 thumb.thumbnail((120, 120))
                 if st.button(img_path.name, key=f"test_{i}"):
-                    selected_test = img_path
+                    st.session_state["selected_test_image"] = str(img_path)
 
     # --- Determine which image to process ---
     source_img = None
-    if selected_test is not None:
-        source_img = Image.open(selected_test).convert("RGB")
-        st.success(f"Using test image: {selected_test.name}")
-    elif uploaded is not None:
+    if uploaded is not None:
+        st.session_state["selected_test_image"] = None
         source_img = Image.open(uploaded).convert("RGB")
+    elif st.session_state.get("selected_test_image"):
+        p = Path(st.session_state["selected_test_image"])
+        if p.exists():
+            source_img = Image.open(p).convert("RGB")
+            st.success(f"Using test image: {p.name}")
 
     if source_img is not None:
         frame_bgr = pil_to_bgr(source_img)
@@ -449,18 +452,43 @@ def page_video():
             help="1 = every frame (slowest, most detailed). 3 = every 3rd frame (faster).",
         )
 
-    if uploaded_video is None:
-        st.info("Upload a video file above to start.")
+    # --- Sample video picker from test_video folder ---
+    test_vid_dir = ROOT / "test_video"
+    if not test_vid_dir.exists():
+        test_vid_dir = ROOT / "test_videos"
+    sample_videos = sorted(test_vid_dir.glob("*.mp4")) if test_vid_dir.exists() else []
+
+    if sample_videos:
+        st.markdown("**Or pick a sample test video:**")
+        cols = st.columns(len(sample_videos))
+        for i, sv in enumerate(sample_videos):
+            with cols[i]:
+                if st.button(sv.name, key=f"sample_vid_{i}"):
+                    st.session_state["selected_sample_video"] = str(sv)
+
+    active_video_path = None
+    active_video_name = ""
+
+    if uploaded_video is not None:
+        st.session_state["selected_sample_video"] = None
+        tmp_dir = ROOT / "output" / "video_tmp"
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_input = tmp_dir / f"input_{uploaded_video.name}"
+        tmp_input.write_bytes(uploaded_video.read())
+        active_video_path = tmp_input
+        active_video_name = uploaded_video.name
+    elif st.session_state.get("selected_sample_video"):
+        p = Path(st.session_state["selected_sample_video"])
+        if p.exists():
+            active_video_path = p
+            active_video_name = p.name
+            st.success(f"Using sample video: {active_video_name}")
+
+    if active_video_path is None:
+        st.info("Upload a video file or pick a sample video above to start.")
         return
 
-    # --- Save uploaded video to a temp file so OpenCV can open it ---
-    import tempfile
-    tmp_dir = ROOT / "output" / "video_tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    tmp_input = tmp_dir / f"input_{uploaded_video.name}"
-    tmp_input.write_bytes(uploaded_video.read())
-
-    cap = cv2.VideoCapture(str(tmp_input))
+    cap = cv2.VideoCapture(str(active_video_path))
     if not cap.isOpened():
         st.error("Could not open the video file. Try a different format.")
         return
@@ -472,7 +500,7 @@ def page_video():
 
     st.markdown(
         f"**Video info:** {total_frames} frames · {orig_fps:.1f} FPS · "
-        f"{orig_w}×{orig_h} px · duration {total_frames/orig_fps:.1f}s"
+        f"{orig_w}×{orig_h} px · duration {total_frames/max(orig_fps, 1):.1f}s"
     )
 
     if not st.button("Process Video", type="primary"):
@@ -482,7 +510,7 @@ def page_video():
     # --- Set up output video writer ---
     output_dir = ROOT / "output" / "video_results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    out_name    = f"annotated_{uploaded_video.name.rsplit('.', 1)[0]}.mp4"
+    out_name    = f"annotated_{active_video_name.rsplit('.', 1)[0]}.mp4"
     out_path    = output_dir / out_name
     fourcc      = cv2.VideoWriter_fourcc(*"mp4v")
     out_writer  = cv2.VideoWriter(str(out_path), fourcc, orig_fps, (orig_w, orig_h))
