@@ -112,6 +112,7 @@ def process_frame(frame_bgr: np.ndarray, enable_audio: bool = False):
     t1 = time.perf_counter()
     elapsed_ms = (t1 - t0) * 1000.0
 
+    fired_alerts = []
     # 4. Audio alerts (only if user enabled them)
     if enable_audio:
         # Start the audio engine lazily on first use (avoids crash at Streamlit boot)
@@ -122,9 +123,17 @@ def process_frame(frame_bgr: np.ndarray, enable_audio: bool = False):
             except Exception:
                 pass  # pyttsx3 not available — silently skip
         try:
-            coordinator.evaluate(tracks, w)
+            fired_alerts = coordinator.evaluate(tracks, w)
         except Exception:
             pass  # Audio error — don't crash the detection loop
+    else:
+        try:
+            saved_enabled = alert_eng.enabled
+            alert_eng.enabled = False
+            fired_alerts = coordinator.evaluate(tracks, w)
+            alert_eng.enabled = saved_enabled
+        except Exception:
+            pass
 
     # 5. Alert summary text
     alert_summary = coordinator.get_active_alert_summary(tracks)
@@ -142,6 +151,7 @@ def process_frame(frame_bgr: np.ndarray, enable_audio: bool = False):
         "avg_conf": round(
             float(np.mean([d.confidence for d in detections])) if detections else 0.0, 3
         ),
+        "fired_alerts": fired_alerts,
     }
 
     return annotated, tracks, detections, alert_summary, stats
@@ -268,9 +278,11 @@ def page_image_upload():
         )
 
     with col2:
-        enable_audio = st.checkbox("Enable voice alerts", value=False,
-                                   help="Plays audio alerts on your PC speakers via pyttsx3")
-        st.info("Audio only works if pyttsx3 is set up correctly on this machine.")
+        enable_audio = st.checkbox(
+            "Enable voice alerts",
+            value=True,
+            help="Plays audio alerts on your PC speakers and web browser",
+        )
 
     # --- Quick test image picker from test_images folder ---
     test_dir = ROOT / "test_images"
@@ -343,6 +355,17 @@ def page_image_upload():
             file_name="crowdaware_result.png",
             mime="image/png",
         )
+
+        # --- Voice alert playback in browser ---
+        if enable_audio and stats.get("fired_alerts"):
+            primary_msg = stats["fired_alerts"][0]
+            from src.audio.video_audio import synthesize_tts_wav
+            img_wav = ROOT / "output" / "last_image_alert.wav"
+            img_wav.parent.mkdir(parents=True, exist_ok=True)
+            if synthesize_tts_wav(primary_msg, str(img_wav)):
+                st.markdown(f"**🔊 Voice Alert:** *\"{primary_msg}\"*")
+                with open(img_wav, "rb") as wf:
+                    st.audio(wf.read(), format="audio/wav", autoplay=True)
 
         # --- Signal panel ---
         render_signal_panel(tracks, alert_summary, stats)
@@ -442,9 +465,9 @@ def page_video():
     with col2:
         enable_audio = st.checkbox(
             "Enable voice alerts while processing",
-            value=False,
+            value=True,
             key="video_audio",
-            help="Plays audio on your speakers as the video is processed frame by frame.",
+            help="Plays audio on your speakers during processing and embeds voice alerts into the downloaded video.",
         )
         process_every = st.slider(
             "Process every N-th frame",
@@ -507,13 +530,17 @@ def page_video():
         cap.release()
         return
 
-    # --- Set up output video writer ---
+    # --- Set up output video writer (writes raw frames first, then audio is muxed) ---
     output_dir = ROOT / "output" / "video_results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    out_name    = f"annotated_{active_video_name.rsplit('.', 1)[0]}.mp4"
-    out_path    = output_dir / out_name
-    fourcc      = cv2.VideoWriter_fourcc(*"mp4v")
-    out_writer  = cv2.VideoWriter(str(out_path), fourcc, orig_fps, (orig_w, orig_h))
+    base_name          = active_video_name.rsplit(".", 1)[0]
+    out_name           = f"annotated_{base_name}.mp4"
+    out_path           = output_dir / out_name
+    raw_video_path     = output_dir / f"_raw_{base_name}.mp4"
+    soundtrack_wav_path = output_dir / f"audio_{base_name}.wav"
+
+    fourcc     = cv2.VideoWriter_fourcc(*"mp4v")
+    out_writer = cv2.VideoWriter(str(raw_video_path), fourcc, orig_fps, (orig_w, orig_h))
 
     # --- UI placeholders ---
     live_frame_ph  = st.empty()
@@ -522,12 +549,13 @@ def page_video():
     alert_log_ph   = st.empty()
 
     # --- Process ---
-    frame_idx        = 0
-    processed_count  = 0
-    total_detections = 0
-    last_annotated   = None
-    alert_log        = []          # list of (timestamp_str, alert_text)
-    last_audio_alert = ""
+    frame_idx          = 0
+    processed_count    = 0
+    total_detections   = 0
+    last_annotated     = None
+    alert_log          = []          # list of (timestamp_str, alert_text)
+    timed_voice_alerts = []          # list of (timestamp_seconds, voice_alert_text)
+    last_audio_alert   = ""
 
     while True:
         ret, frame = cap.read()
@@ -535,15 +563,21 @@ def page_video():
             break
 
         frame_idx += 1
+        video_time = frame_idx / orig_fps
         should_detect = (frame_idx % process_every == 0) or frame_idx == 1
 
         if should_detect:
             annotated, tracks, detections, alert_summary, stats = process_frame(
                 frame, enable_audio=enable_audio
             )
-            last_annotated  = annotated
+            last_annotated   = annotated
             processed_count += 1
             total_detections += stats["detections"]
+
+            # Collect fired voice alerts for embedding into video audio
+            for fa in stats.get("fired_alerts", []):
+                if not timed_voice_alerts or (video_time - timed_voice_alerts[-1][0] >= 1.5) or (timed_voice_alerts[-1][1] != fa):
+                    timed_voice_alerts.append((video_time, fa))
 
             # --- Live preview (every 5th processed frame to keep UI snappy) ---
             if processed_count % 5 == 0:
@@ -554,7 +588,7 @@ def page_video():
                 )
 
             # --- Collect alert log entries (deduplicate consecutive same alerts) ---
-            ts = f"{frame_idx / orig_fps:.1f}s"
+            ts = f"{video_time:.1f}s"
             if alert_summary and alert_summary != last_audio_alert and "clear" not in alert_summary.lower():
                 alert_log.append((ts, alert_summary))
                 last_audio_alert = alert_summary
@@ -589,15 +623,43 @@ def page_video():
     out_writer.release()
 
     progress_ph.progress(1.0)
+    total_duration = frame_idx / max(orig_fps, 1.0)
+
+    # --- Build synchronized voice alert audio track and mux into final MP4 ---
+    from src.audio.video_audio import build_video_soundtrack, mux_audio_into_video
+
+    if not timed_voice_alerts:
+        timed_voice_alerts.append((1.0, "Path clear. No hazards detected."))
+
+    with st.spinner("Generating synchronized voice alert audio track and embedding into MP4..."):
+        soundtrack_ok = build_video_soundtrack(
+            timed_voice_alerts, total_duration, str(soundtrack_wav_path)
+        )
+        if soundtrack_ok:
+            mux_ok = mux_audio_into_video(
+                str(raw_video_path), str(soundtrack_wav_path), str(out_path)
+            )
+            if mux_ok and raw_video_path.exists():
+                try:
+                    os.remove(str(raw_video_path))
+                except Exception:
+                    pass
+        else:
+            if raw_video_path.exists():
+                try:
+                    os.replace(str(raw_video_path), str(out_path))
+                except Exception:
+                    pass
+
     st.success(
         f"Done! Processed {processed_count} frames out of {frame_idx} total. "
         f"Total detections: {total_detections}."
     )
 
-    # --- Final last frame preview ---
-    if last_annotated is not None:
-        st.subheader("Last annotated frame")
-        st.image(bgr_to_pil(last_annotated), use_container_width=True)
+    # --- Final preview: annotated video WITH AUDIO ---
+    if out_path.exists():
+        st.subheader("Annotated Video (with Voice Alerts)")
+        st.video(str(out_path))
 
     # --- Full alert log ---
     if alert_log:
@@ -607,11 +669,17 @@ def page_video():
     else:
         st.info("No hazard alerts fired during this video.")
 
+    # --- Audio player for voice alert track ---
+    if soundtrack_wav_path.exists():
+        st.markdown("**🔊 Voice Alerts Soundtrack:**")
+        with open(soundtrack_wav_path, "rb") as af:
+            st.audio(af.read(), format="audio/wav")
+
     # --- Download button ---
     if out_path.exists():
         with open(out_path, "rb") as f:
             st.download_button(
-                label="Download annotated video (MP4)",
+                label="⬇️ Download annotated video with voice alerts (MP4)",
                 data=f.read(),
                 file_name=out_name,
                 mime="video/mp4",

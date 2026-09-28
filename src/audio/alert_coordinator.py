@@ -65,58 +65,70 @@ class AlertCoordinator:
     # Main evaluation loop (call every frame)
     # ------------------------------------------------------------------
 
-    def evaluate(self, tracks: List[Track], frame_width: int):
+    def evaluate(self, tracks: List[Track], frame_width: int) -> List[str]:
         """
         Inspect all active tracks and fire alerts as needed.
+        Returns list of alert message strings fired in this evaluation.
 
         Args:
             tracks      : List of confirmed Track objects
             frame_width : Frame width in pixels (for pan calculation)
         """
+        fired_alerts: List[str] = []
+
         if not tracks:
             if self._was_occupied:
                 self.engine.alert_info(self._msg_clear)
+                fired_alerts.append(self._msg_clear)
                 self._was_occupied = False
-            return
+            return fired_alerts
 
         self._was_occupied = True
 
         # Sort tracks by distance — handle closest ones first
         sorted_tracks = sorted(tracks, key=lambda t: t.distance_m)
 
-        # 1. Proximity alerts — only within 2 metres
+        # 1. Proximity alerts — up to 4.0m (Critical <1m, Close <2.5m, Near <4m)
         closest = sorted_tracks[0]
-        if closest.distance_m <= 2.0:
-            self._proximity_alert(closest, frame_width)
+        if closest.distance_m <= 4.0:
+            p_msg = self._proximity_alert(closest, frame_width)
+            if p_msg:
+                fired_alerts.append(p_msg)
 
-        # 2. Approaching alerts — only if within 2 metres
+        # 2. Approaching alerts — up to 4.0m
         for track in sorted_tracks:
-            if track.is_approaching and track.distance_m <= 2.0:
-                self._approaching_alert(track, frame_width)
+            if track.is_approaching and track.distance_m <= 4.0:
+                app_msg = self._approaching_alert(track, frame_width)
+                if app_msg:
+                    fired_alerts.append(app_msg)
                 break   # Only one approaching alert per frame
 
         # 3. Path-blocked alert
         blockers = [t for t in tracks if t.is_path_blocker]
         if blockers:
             self.engine.alert_path_blocked(self._msg_blocked)
+            fired_alerts.append(self._msg_blocked)
 
         # 4. Crowd density alert
         n = len(tracks)
         if n >= self.high_density_thresh:
-            msg = self._msg_crowd.format(count=n)
-            self.engine.alert_crowd(f"High density crowd alert! {n} people around you")
+            c_msg = f"High density crowd alert! {n} people around you"
+            self.engine.alert_crowd(c_msg)
+            fired_alerts.append(c_msg)
         elif n >= self.crowd_threshold:
-            msg = self._msg_crowd.format(count=n)
-            self.engine.alert_crowd(msg)
+            c_msg = self._msg_crowd.format(count=n)
+            self.engine.alert_crowd(c_msg)
+            fired_alerts.append(c_msg)
 
         self._last_crowd_count = n
+        return fired_alerts
 
     # ------------------------------------------------------------------
     # Per-track alert helpers
     # ------------------------------------------------------------------
 
-    def _proximity_alert(self, track: Track, frame_width: int):
-        """Fire distance-based alert for person within 2 metres."""
+    def _proximity_alert(self, track: Track, frame_width: int) -> str:
+        """Fire distance-based alert for person within 4 metres."""
         dist = track.distance_m
         cx   = track.center[0]
         pan  = self.engine.compute_pan(cx, frame_width)
@@ -124,18 +136,25 @@ class AlertCoordinator:
         if dist < 1.0:
             msg = self._msg_critical.format(distance=dist)
             self.engine.alert_critical(msg, pan=pan)
-        elif dist <= 2.0:
+            return msg
+        elif dist <= 2.5:
             msg = self._msg_close.format(distance=dist)
             self.engine.alert_close(msg, pan=pan)
-        # Beyond 2m: no voice alert
+            return msg
+        elif dist <= 4.0:
+            msg = self._msg_near.format(distance=dist)
+            self.engine.alert_near(msg, pan=pan)
+            return msg
+        return ""
 
-    def _approaching_alert(self, track: Track, frame_width: int):
+    def _approaching_alert(self, track: Track, frame_width: int) -> str:
         """Fire alert when someone is actively moving toward the user."""
         direction = track.movement_direction or "ahead"
         msg = self._msg_approaching.format(direction=direction)
         cx  = track.center[0]
         pan = self.engine.compute_pan(cx, frame_width)
         self.engine.alert_approaching(msg, pan=pan)
+        return msg
 
     # ------------------------------------------------------------------
     # Utility
